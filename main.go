@@ -71,7 +71,6 @@ func (p *Parser) parseChunk() {
 		p.readData(length)
 	case "IEND":
 		fmt.Println("IEND")
-		p.readData(length)
 		p.seenIEND = true
 	default:
 		fmt.Println(chunkType)
@@ -102,13 +101,16 @@ func (p *Parser) parseIHDR(length int) {
 
 	p.ihdr.interlace = int(p.next(1)[0]) == 1
 
-	// crc
-	p.next(4)
+	p.readCRC()
 }
 
 func (p *Parser) readData(length int) {
 	p.next(length)
 	// crc
+	p.readCRC()
+}
+
+func (p *Parser) readCRC() {
 	p.next(4)
 }
 
