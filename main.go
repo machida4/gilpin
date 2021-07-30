@@ -13,11 +13,8 @@ const pngSignature = "\x89PNG\r\n\x1a\n"
 
 type Parser struct {
 	buffer   *bytes.Buffer
-	ihdr     *Ihdr
 	seenIEND bool
-}
 
-type Ihdr struct {
 	width, height int
 	bitDepth      int
 	colorType     int
@@ -31,7 +28,7 @@ func NewParser(r io.Reader) *Parser {
 		fmt.Println(err)
 	}
 
-	p := &Parser{buffer: buffer, ihdr: new(Ihdr), seenIEND: false}
+	p := &Parser{buffer: buffer, seenIEND: false}
 
 	return p
 }
@@ -62,7 +59,6 @@ func (p *Parser) parseChunk() {
 	case "IHDR":
 		fmt.Println("IHDR")
 		p.parseIHDR(length)
-		fmt.Println(p.ihdr)
 	case "IPLT":
 		fmt.Println("IPLT")
 		p.readData(length)
@@ -84,10 +80,10 @@ func (p *Parser) parseIHDR(length int) {
 		return
 	}
 
-	p.ihdr.width = int(binary.BigEndian.Uint32(p.next(4)))
-	p.ihdr.height = int(binary.BigEndian.Uint32(p.next(4)))
-	p.ihdr.bitDepth = int(p.next(1)[0])
-	p.ihdr.colorType = int(p.next(1)[0])
+	p.width = int(binary.BigEndian.Uint32(p.next(4)))
+	p.height = int(binary.BigEndian.Uint32(p.next(4)))
+	p.bitDepth = int(p.next(1)[0])
+	p.colorType = int(p.next(1)[0])
 
 	compressionMethod := int(p.next(1)[0])
 	if compressionMethod != 0 {
@@ -99,14 +95,13 @@ func (p *Parser) parseIHDR(length int) {
 		fmt.Println("unknown filter method")
 	}
 
-	p.ihdr.interlace = int(p.next(1)[0]) == 1
+	p.interlace = int(p.next(1)[0]) == 1
 
 	p.readCRC()
 }
 
 func (p *Parser) readData(length int) {
 	p.next(length)
-	// crc
 	p.readCRC()
 }
 
