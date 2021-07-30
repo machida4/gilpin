@@ -67,7 +67,7 @@ func (p *Parser) parseChunk() {
 		fmt.Println("IPLT")
 		p.readData(length)
 	case "IDAT":
-		fmt.Println("IDAT, ", length)
+		fmt.Println("IDAT,", length)
 		p.readData(length)
 	case "IEND":
 		fmt.Println("IEND")
@@ -115,7 +115,7 @@ func (p *Parser) readCRC() {
 }
 
 func main() {
-	inputFilePath := filepath.Join("images", "lenna.png")
+	inputFilePath := filepath.Join("images", os.Args[1])
 	inputFile, err := os.Open(inputFilePath)
 	if err != nil {
 		fmt.Println(err)
