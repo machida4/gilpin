@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/zlib"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -10,6 +11,18 @@ import (
 )
 
 const pngSignature = "\x89PNG\r\n\x1a\n"
+
+type FilterType int
+
+// filter type
+const (
+	None = iota
+	Sub
+	Up
+	Average
+	Paeth
+	Unknown
+)
 
 type Parser struct {
 	buffer   *bytes.Buffer
@@ -59,18 +72,19 @@ func (p *Parser) parseChunk() {
 	case "IHDR":
 		fmt.Println("IHDR")
 		p.parseIHDR(length)
+		fmt.Printf("%+v\n", p)
 	case "IPLT":
 		fmt.Println("IPLT")
-		p.readData(length)
+		p.skipData(length)
 	case "IDAT":
 		fmt.Println("IDAT,", length)
-		p.readData(length)
+		p.parseIDAT(length)
 	case "IEND":
 		fmt.Println("IEND")
 		p.seenIEND = true
 	default:
 		fmt.Println(chunkType)
-		p.readData(length)
+		p.skipData(length)
 	}
 }
 
@@ -85,28 +99,85 @@ func (p *Parser) parseIHDR(length int) {
 	p.bitDepth = int(p.next(1)[0])
 	p.colorType = int(p.next(1)[0])
 
-	compressionMethod := int(p.next(1)[0])
-	if compressionMethod != 0 {
+	if int(p.next(1)[0]) != 0 {
 		fmt.Println("unknown compression method")
 	}
-
-	filterMethod := int(p.next(1)[0])
-	if filterMethod != 0 {
+	if int(p.next(1)[0]) != 0 {
 		fmt.Println("unknown filter method")
 	}
 
 	p.interlace = int(p.next(1)[0]) == 1
 
-	p.readCRC()
+	p.skipCRC()
 }
 
-func (p *Parser) readData(length int) {
+func (p *Parser) parseIDAT(length int) {
+	data := inflate(p.next(length))
+
+	scanlineSize := 1 + (bitPerPixel(p.colorType, p.bitDepth)*p.width+7)/8
+	scanlineData := make([]byte, scanlineSize)
+
+	for h := 0; h < p.height; h++ {
+		offset := h * scanlineSize
+		scanlineData = data[offset : offset+scanlineSize]
+		filterType := int(scanlineData[0])
+		switch filterType {
+		case None:
+			fmt.Println("None")
+		case Sub:
+			fmt.Println("Sub")
+		case Up:
+			fmt.Println("Up")
+		case Average:
+			fmt.Println("Average")
+		case Paeth:
+			fmt.Println("Paeth")
+		default:
+			fmt.Println("Unknown")
+		}
+	}
+
+	p.skipCRC()
+}
+
+func (p *Parser) skipData(length int) {
 	p.next(length)
-	p.readCRC()
+	p.skipCRC()
 }
 
-func (p *Parser) readCRC() {
+func (p *Parser) skipCRC() {
 	p.next(4)
+}
+
+func inflateImageData() {
+}
+
+func bitPerPixel(colorType, depth int) int {
+	switch colorType {
+	case 0:
+		return depth
+	case 2:
+		return depth * 3
+	case 3:
+		return depth
+	case 4:
+		return depth * 2
+	case 6:
+		return depth * 4
+	default:
+		return 0
+	}
+}
+
+func inflate(data []byte) []byte {
+	dataBuffer := bytes.NewReader(data)
+	r, _ := zlib.NewReader(dataBuffer)
+	defer r.Close()
+
+	var buffer bytes.Buffer
+	buffer.ReadFrom(r)
+
+	return buffer.Bytes()
 }
 
 func main() {
