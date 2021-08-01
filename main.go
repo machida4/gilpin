@@ -14,7 +14,6 @@ const pngSignature = "\x89PNG\r\n\x1a\n"
 
 type FilterType int
 
-// filter type
 const (
 	None = iota
 	Sub
@@ -24,6 +23,10 @@ const (
 	Unknown
 )
 
+func (ft FilterType) String() string {
+	return [...]string{"None", "Sub", "Up", "Average", "Paeth", "Unknown"}[ft]
+}
+
 type Parser struct {
 	buffer   *bytes.Buffer
 	seenIEND bool
@@ -32,6 +35,15 @@ type Parser struct {
 	bitDepth      int
 	colorType     int
 	interlace     bool
+
+	compressedData []byte
+	scanlines      []*Scanline
+}
+
+type Scanline struct {
+	filterType FilterType
+
+	data []byte
 }
 
 func NewParser(r io.Reader) *Parser {
@@ -50,11 +62,17 @@ func (p *Parser) next(n int) []byte {
 	return p.buffer.Next(n)
 }
 
-func (p *Parser) parse() {
+func (p *Parser) Parse() {
 	p.checkSignature()
 
 	for !p.seenIEND {
 		p.parseChunk()
+	}
+
+	p.scanlines = p.divideFilteredDataIntoScanlines(inflate(p.compressedData))
+
+	for _, scanline := range p.scanlines {
+		fmt.Println("filter:", scanline.filterType)
 	}
 }
 
@@ -112,31 +130,7 @@ func (p *Parser) parseIHDR(length int) {
 }
 
 func (p *Parser) parseIDAT(length int) {
-	data := inflate(p.next(length))
-
-	scanlineSize := 1 + (bitPerPixel(p.colorType, p.bitDepth)*p.width+7)/8
-	scanlineData := make([]byte, scanlineSize)
-
-	for h := 0; h < p.height; h++ {
-		offset := h * scanlineSize
-		scanlineData = data[offset : offset+scanlineSize]
-		filterType := int(scanlineData[0])
-		switch filterType {
-		case None:
-			fmt.Println("None")
-		case Sub:
-			fmt.Println("Sub")
-		case Up:
-			fmt.Println("Up")
-		case Average:
-			fmt.Println("Average")
-		case Paeth:
-			fmt.Println("Paeth")
-		default:
-			fmt.Println("Unknown")
-		}
-	}
-
+	p.compressedData = append(p.compressedData, p.next(length)...)
 	p.skipCRC()
 }
 
@@ -149,7 +143,20 @@ func (p *Parser) skipCRC() {
 	p.next(4)
 }
 
-func inflateImageData() {
+func (p *Parser) divideFilteredDataIntoScanlines(filteredData []byte) []*Scanline {
+	var scanlines []*Scanline
+	scanlineSize := 1 + (bitPerPixel(p.colorType, p.bitDepth)*p.width+7)/8
+
+	for h := 0; h < p.height; h++ {
+		offset := h * scanlineSize
+		filterType := FilterType(filteredData[offset])
+		scanlineData := filteredData[offset+1 : offset+scanlineSize]
+
+		scanline := &Scanline{filterType: filterType, data: scanlineData}
+		scanlines = append(scanlines, scanline)
+	}
+
+	return scanlines
 }
 
 func bitPerPixel(colorType, depth int) int {
@@ -174,7 +181,7 @@ func inflate(data []byte) []byte {
 	r, _ := zlib.NewReader(dataBuffer)
 	defer r.Close()
 
-	var buffer bytes.Buffer
+	buffer := new(bytes.Buffer)
 	buffer.ReadFrom(r)
 
 	return buffer.Bytes()
@@ -190,7 +197,7 @@ func main() {
 	defer inputFile.Close()
 
 	parser := NewParser(inputFile)
-	parser.parse()
+	parser.Parse()
 
 	fmt.Println("Complete")
 }
