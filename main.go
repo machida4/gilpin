@@ -36,8 +36,11 @@ type Parser struct {
 	colorType     int
 	interlace     bool
 
+	headData       []byte
 	compressedData []byte
-	scanlines      []*Scanline
+	tailData       []byte
+
+	scanlines []*Scanline
 }
 
 type Scanline struct {
@@ -71,9 +74,9 @@ func (p *Parser) Parse() {
 
 	p.scanlines = p.divideFilteredDataIntoScanlines(inflate(p.compressedData))
 
-	for _, scanline := range p.scanlines {
-		fmt.Println("filter:", scanline.filterType)
-	}
+	// for _, scanline := range p.scanlines {
+	// 	fmt.Println("filter:", scanline.filterType)
+	// }
 }
 
 func (p *Parser) checkSignature() {
@@ -91,9 +94,6 @@ func (p *Parser) parseChunk() {
 		fmt.Println("IHDR")
 		p.parseIHDR(length)
 		fmt.Printf("%+v\n", p)
-	case "IPLT":
-		fmt.Println("IPLT")
-		p.skipData(length)
 	case "IDAT":
 		fmt.Println("IDAT,", length)
 		p.parseIDAT(length)
@@ -102,7 +102,7 @@ func (p *Parser) parseChunk() {
 		p.seenIEND = true
 	default:
 		fmt.Println(chunkType)
-		p.skipData(length)
+		p.parseDefault(length)
 	}
 }
 
@@ -134,8 +134,13 @@ func (p *Parser) parseIDAT(length int) {
 	p.skipCRC()
 }
 
-func (p *Parser) skipData(length int) {
-	p.next(length)
+func (p *Parser) parseDefault(length int) {
+	if len(p.compressedData) == 0 {
+		p.headData = append(p.headData, p.next(length)...)
+	} else {
+		p.tailData = append(p.tailData, p.next(length)...)
+	}
+
 	p.skipCRC()
 }
 
