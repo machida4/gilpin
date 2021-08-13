@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"gilpin/decoder"
+	"gilpin/gilpin"
 	"os"
 	"path/filepath"
 )
@@ -16,7 +16,7 @@ func main() {
 	}
 	defer inputFile.Close()
 
-	decoder := decoder.NewDecoder(inputFile)
+	decoder := gilpin.NewDecoder(inputFile)
 	imageData := decoder.Decode()
 
 	fmt.Println(imageData)
