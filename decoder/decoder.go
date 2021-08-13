@@ -42,7 +42,7 @@ type ImageData struct {
 	compressedData []byte
 	tailData       []byte
 
-	// scanlines []*Scanline
+	scanlines []*Scanline
 }
 
 func (id ImageData) String() string {
@@ -69,61 +69,57 @@ func NewDecoder(r io.Reader) *Decoder {
 	return p
 }
 
-func (p *Decoder) next(n int) []byte {
-	return p.buffer.Next(n)
+func (d *Decoder) next(n int) []byte {
+	return d.buffer.Next(n)
 }
 
-func (p *Decoder) Parse() *ImageData {
-	p.checkSignature()
+func (d *Decoder) Decode() *ImageData {
+	d.checkSignature()
 
-	for !p.seenIEND {
-		p.parseChunk()
+	for !d.seenIEND {
+		d.parseChunk()
 	}
 
-	// p.scanlines = p.divideFilteredDataIntoScanlines(inflate(p.compressedData))
+	d.imageData.scanlines = d.divideFilteredDataIntoScanlines(inflate(d.imageData.compressedData))
 
-	// for _, scanline := range p.scanlines {
-	// 	fmt.Println("filter:", scanline.filterType)
-	// }
-
-	return p.imageData
+	return d.imageData
 }
 
-func (p *Decoder) checkSignature() {
-	if string(p.next(8)) != pngSignature {
+func (d *Decoder) checkSignature() {
+	if string(d.next(8)) != pngSignature {
 		fmt.Println("not PNG!!!")
 	}
 }
 
-func (p *Decoder) parseChunk() {
-	length := int(binary.BigEndian.Uint32(p.next(4)))
-	chunkType := string(p.next(4))
+func (d *Decoder) parseChunk() {
+	length := int(binary.BigEndian.Uint32(d.next(4)))
+	chunkType := string(d.next(4))
 
 	switch chunkType {
 	case "IHDR":
-		p.parseIHDR(length)
+		d.parseIHDR(length)
 	case "IDAT":
-		p.parseIDAT(length)
+		d.parseIDAT(length)
 	case "IEND":
-		p.seenIEND = true
+		d.seenIEND = true
 	default:
-		p.parseDefault(length)
+		d.parseDefault(length)
 	}
 }
 
-func (p *Decoder) parseIHDR(length int) {
+func (d *Decoder) parseIHDR(length int) {
 	if length != 13 {
 		fmt.Println("wrong IHDR format")
 		return
 	}
 
-	IHDRData := p.next(13)
-	p.imageData.headData = append(p.imageData.headData, IHDRData...)
+	IHDRData := d.next(13)
+	d.imageData.headData = append(d.imageData.headData, IHDRData...)
 
-	p.imageData.width = int(binary.BigEndian.Uint32(IHDRData[0:4]))
-	p.imageData.height = int(binary.BigEndian.Uint32(IHDRData[4:8]))
-	p.imageData.bitDepth = int(IHDRData[8])
-	p.imageData.colorType = int(IHDRData[9])
+	d.imageData.width = int(binary.BigEndian.Uint32(IHDRData[0:4]))
+	d.imageData.height = int(binary.BigEndian.Uint32(IHDRData[4:8]))
+	d.imageData.bitDepth = int(IHDRData[8])
+	d.imageData.colorType = int(IHDRData[9])
 
 	if int(IHDRData[10]) != 0 {
 		fmt.Println("unknown compression method")
@@ -132,45 +128,45 @@ func (p *Decoder) parseIHDR(length int) {
 		fmt.Println("unknown filter method")
 	}
 
-	p.imageData.interlace = int(IHDRData[12]) == 1
+	d.imageData.interlace = int(IHDRData[12]) == 1
 
-	p.skipCRC()
+	d.skipCRC()
 }
 
-func (p *Decoder) parseIDAT(length int) {
-	p.imageData.compressedData = append(p.imageData.compressedData, p.next(length)...)
-	p.skipCRC()
+func (d *Decoder) parseIDAT(length int) {
+	d.imageData.compressedData = append(d.imageData.compressedData, d.next(length)...)
+	d.skipCRC()
 }
 
-func (p *Decoder) parseDefault(length int) {
-	if len(p.imageData.compressedData) == 0 {
-		p.imageData.headData = append(p.imageData.headData, p.next(length)...)
+func (d *Decoder) parseDefault(length int) {
+	if len(d.imageData.compressedData) == 0 {
+		d.imageData.headData = append(d.imageData.headData, d.next(length)...)
 	} else {
-		p.imageData.tailData = append(p.imageData.tailData, p.next(length)...)
+		d.imageData.tailData = append(d.imageData.tailData, d.next(length)...)
 	}
 
-	p.skipCRC()
+	d.skipCRC()
 }
 
-func (p *Decoder) skipCRC() {
-	p.next(4)
+func (d *Decoder) skipCRC() {
+	d.next(4)
 }
 
-// func (p *Decoder) divideFilteredDataIntoScanlines(filteredData []byte) []*Scanline {
-// 	var scanlines []*Scanline
-// 	scanlineSize := 1 + (bitPerPixel(p.imageData.colorType, p.imageData.bitDepth)*p.imageData.width+7)/8
+func (d *Decoder) divideFilteredDataIntoScanlines(filteredData []byte) []*Scanline {
+	var scanlines []*Scanline
+	scanlineSize := 1 + (bitPerPixel(d.imageData.colorType, d.imageData.bitDepth)*d.imageData.width+7)/8
 
-// 	for h := 0; h < p.imageData.height; h++ {
-// 		offset := h * scanlineSize
-// 		filterType := FilterType(filteredData[offset])
-// 		scanlineData := filteredData[offset+1 : offset+scanlineSize]
+	for h := 0; h < d.imageData.height; h++ {
+		offset := h * scanlineSize
+		filterType := FilterType(filteredData[offset])
+		scanlineData := filteredData[offset+1 : offset+scanlineSize]
 
-// 		scanline := &Scanline{filterType: filterType, data: scanlineData}
-// 		scanlines = append(scanlines, scanline)
-// 	}
+		scanline := &Scanline{filterType: filterType, data: scanlineData}
+		scanlines = append(scanlines, scanline)
+	}
 
-// 	return scanlines
-// }
+	return scanlines
+}
 
 func bitPerPixel(colorType, depth int) int {
 	switch colorType {
