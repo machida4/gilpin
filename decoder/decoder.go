@@ -1,4 +1,4 @@
-package parser
+package decoder
 
 import (
 	"bytes"
@@ -25,7 +25,7 @@ func (ft FilterType) String() string {
 	return [...]string{"None", "Sub", "Up", "Average", "Paeth", "Unknown"}[ft]
 }
 
-type Parser struct {
+type Decoder struct {
 	buffer   *bytes.Buffer
 	seenIEND bool
 
@@ -57,23 +57,23 @@ type Scanline struct {
 	data []byte
 }
 
-func NewParser(r io.Reader) *Parser {
+func NewDecoder(r io.Reader) *Decoder {
 	buffer := new(bytes.Buffer)
 	_, err := buffer.ReadFrom(r)
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	p := &Parser{buffer: buffer, imageData: new(ImageData), seenIEND: false}
+	p := &Decoder{buffer: buffer, imageData: new(ImageData), seenIEND: false}
 
 	return p
 }
 
-func (p *Parser) next(n int) []byte {
+func (p *Decoder) next(n int) []byte {
 	return p.buffer.Next(n)
 }
 
-func (p *Parser) Parse() *ImageData {
+func (p *Decoder) Parse() *ImageData {
 	p.checkSignature()
 
 	for !p.seenIEND {
@@ -89,13 +89,13 @@ func (p *Parser) Parse() *ImageData {
 	return p.imageData
 }
 
-func (p *Parser) checkSignature() {
+func (p *Decoder) checkSignature() {
 	if string(p.next(8)) != pngSignature {
 		fmt.Println("not PNG!!!")
 	}
 }
 
-func (p *Parser) parseChunk() {
+func (p *Decoder) parseChunk() {
 	length := int(binary.BigEndian.Uint32(p.next(4)))
 	chunkType := string(p.next(4))
 
@@ -111,7 +111,7 @@ func (p *Parser) parseChunk() {
 	}
 }
 
-func (p *Parser) parseIHDR(length int) {
+func (p *Decoder) parseIHDR(length int) {
 	if length != 13 {
 		fmt.Println("wrong IHDR format")
 		return
@@ -137,12 +137,12 @@ func (p *Parser) parseIHDR(length int) {
 	p.skipCRC()
 }
 
-func (p *Parser) parseIDAT(length int) {
+func (p *Decoder) parseIDAT(length int) {
 	p.imageData.compressedData = append(p.imageData.compressedData, p.next(length)...)
 	p.skipCRC()
 }
 
-func (p *Parser) parseDefault(length int) {
+func (p *Decoder) parseDefault(length int) {
 	if len(p.imageData.compressedData) == 0 {
 		p.imageData.headData = append(p.imageData.headData, p.next(length)...)
 	} else {
@@ -152,11 +152,11 @@ func (p *Parser) parseDefault(length int) {
 	p.skipCRC()
 }
 
-func (p *Parser) skipCRC() {
+func (p *Decoder) skipCRC() {
 	p.next(4)
 }
 
-// func (p *Parser) divideFilteredDataIntoScanlines(filteredData []byte) []*Scanline {
+// func (p *Decoder) divideFilteredDataIntoScanlines(filteredData []byte) []*Scanline {
 // 	var scanlines []*Scanline
 // 	scanlineSize := 1 + (bitPerPixel(p.imageData.colorType, p.imageData.bitDepth)*p.imageData.width+7)/8
 
