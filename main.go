@@ -19,6 +19,11 @@ func main() {
 	decoder := gilpin.NewDecoder(inputFile)
 	imageData := decoder.Decode()
 
+	outputFilePath := filepath.Join("images", os.Args[2])
+	outputFile, err := os.Open(outputFilePath)
+	encoder := gilpin.NewEncoder(outputFile)
+	encoder.Encode(imageData)
+
 	fmt.Println(imageData)
 
 	fmt.Println("")

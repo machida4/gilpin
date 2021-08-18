@@ -25,6 +25,14 @@ func (id ImageData) String() string {
 	)
 }
 
+func (id *ImageData) CompressedData() []byte {
+	return id.compressedData
+}
+
+func (id *ImageData) SetCompressedData(newCompressedData []byte) {
+	id.compressedData = newCompressedData
+}
+
 func (id *ImageData) ToScanlines(filteredData []byte) []*Scanline {
 	var scanlines []*Scanline
 	scanlineSize := 1 + (bitPerPixel(id.colorType, id.bitDepth)*id.width+7)/8
