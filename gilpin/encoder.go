@@ -6,21 +6,34 @@ import (
 )
 
 type Encoder struct {
+	writer io.Writer
 	buffer *bytes.Buffer
 
-	ImageData *ImageData
+	imageData *ImageData
 }
 
-func NewEncoder(r io.Writer) *Encoder {
+func NewEncoder(writer io.Writer) *Encoder {
+	buffer := new(bytes.Buffer)
 
+	return &Encoder{writer: writer, buffer: buffer}
 }
 
 func (e *Encoder) Encode(imageData *ImageData) {
+	e.imageData = imageData
 
+	e.writeHeadData()
+	e.writeCompressedData()
+	e.writeTailData()
 }
 
-func (e *Encoder) writeHeadData() {}
+func (e *Encoder) writeHeadData() {
+	e.writer.Write(e.imageData.headData)
+}
 
-func (e *Encoder) writeCompressedData() {}
+func (e *Encoder) writeCompressedData() {
+	e.writer.Write(e.imageData.compressedData)
+}
 
-func (e *Encoder) writeTailData() {}
+func (e *Encoder) writeTailData() {
+	e.writer.Write(e.imageData.tailData)
+}

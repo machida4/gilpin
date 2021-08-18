@@ -24,10 +24,9 @@ func NewDecoder(r io.Reader) *Decoder {
 		fmt.Println(err)
 	}
 
-	p := &Decoder{buffer: buffer, imageData: new(ImageData), seenIEND: false}
-
-	return p
+	return &Decoder{buffer: buffer, imageData: new(ImageData), seenIEND: false}
 }
+
 func (d *Decoder) Decode() *ImageData {
 	d.checkSignature()
 

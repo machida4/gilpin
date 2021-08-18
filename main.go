@@ -21,6 +21,8 @@ func main() {
 
 	outputFilePath := filepath.Join("images", os.Args[2])
 	outputFile, err := os.Open(outputFilePath)
+	defer outputFile.Close()
+
 	encoder := gilpin.NewEncoder(outputFile)
 	encoder.Encode(imageData)
 
